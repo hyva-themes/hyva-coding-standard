@@ -13,6 +13,8 @@
     <!-- File extensions to be checked. -->
     <arg name="extensions" value="php,phtml,css,graphqls,html,xml,js"/>
 
+    <exclude-pattern>*/node_modules/*</exclude-pattern>
+    
     <rule name="HyvaThemes.Templates.BlockEscapeInTemplate">
         <include-pattern>*\.phtml$</include-pattern>
     </rule>
