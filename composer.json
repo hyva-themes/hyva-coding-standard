@@ -4,7 +4,7 @@
     "license": "BSD-3-Clause",
     "require": {
         "php": ">=7.3",
-        "magento/magento-coding-standard": "^25.0",
+        "magento/magento-coding-standard": ">=25.0",
         "squizlabs/php_codesniffer": "^3.6.1"
     },
     "require-dev": {
