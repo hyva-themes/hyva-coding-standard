@@ -4,14 +4,14 @@ A set of Hyvä specific PHP CodeSniffer rules extending the Magento Coding Stand
 
 ## Installation
 
-We NOT recommend installing the hyva-coding-standard as a dev dependency of the Magento project, because it shares some dependencies with Magento, which can easily lead to composer version conflicts.  
-Instead, we recommend a stand-alone installation of the hyva-coding-standard.  
+We NOT recommend installing the hyva-coding-standard as a dev dependency of the Magento project, because it shares some dependencies with Magento, which can easily lead to composer version conflicts.
+Instead, we recommend a stand-alone installation of the hyva-coding-standard.
 
 ### Stand-alone installation
 
-Run the following command to install the coding standard stand-alone in a directory `hyva-coding-standard`.  
-You can do this inside or outside the Magento project folder.  
-If you want to set up PHPStorm inspections and are using a remote PHP interpreter (e.g. warden), you will have to install the coding standard inside the Magento project (see below for details).  
+Run the following command to install the coding standard stand-alone in a directory `hyva-coding-standard`.
+You can do this inside or outside the Magento project folder.
+If you want to set up PHPStorm inspections and are using a remote PHP interpreter (e.g. warden), you will have to install the coding standard inside the Magento project (see below for details).
 Otherwise we recommend doing this outside of your Magento project folder so it doesn't interfere with the project structure.
 
 ```sh
@@ -20,10 +20,10 @@ composer create-project --no-plugins --no-dev hyva-themes/hyva-coding-standard h
 
 This is also the recommended approach for checking the coding standard in a CI pipeline.
 
-### Installation as a dev dependency of the project 
+### Installation as a dev dependency of the project
 
-Installing the hyva-coding-standard as a project dependency is not recommended. Instead, consider installing it as stand-alone as described above.  
-If you still want to go ahead, because you are sure the dependencies shared with Magento have compatible versions, run the following commands:  
+Installing the hyva-coding-standard as a project dependency is not recommended. Instead, consider installing it as stand-alone as described above.
+If you still want to go ahead, because you are sure the dependencies shared with Magento have compatible versions, run the following commands:
 
 ```sh
 composer require --dev hyva-themes/hyva-coding-standard
@@ -48,8 +48,8 @@ If you installed it as a Magento project dependency, adjust the path to `phpcs` 
 
 ## Configuration in PHPStorm
 
-Setting up the PHPStorm configuration differs depending on if you use a containerized or local PHP interpreter.  
-The dialog details also depend on the PHPStorm version. These instructions are based on PHPStorm 2022.1.3.  
+Setting up the PHPStorm configuration differs depending on if you use a containerized or local PHP interpreter.
+The dialog details also depend on the PHPStorm version. These instructions are based on PHPStorm 2022.1.3.
 
 ### PHPStorm setup with a local PHP Interpreter
 
@@ -69,10 +69,10 @@ The dialog details also depend on the PHPStorm version. These instructions are b
 
 ### With PHP in docker (e.g. warden)
 
-When using a container based PHP dev environment (for example [warden](https://warden.dev/)), PHPStorm is usually configured to run a "remote" PHP interpreter inside the container.  
-In this case the PHPStorm code sniffer integration is only able to work with a coding standard installation *inside* of the project folder structure. This is a limitation of PHPStorm.  
+When using a container based PHP dev environment (for example [warden](https://warden.dev/)), PHPStorm is usually configured to run a "remote" PHP interpreter inside the container.
+In this case the PHPStorm code sniffer integration is only able to work with a coding standard installation *inside* of the project folder structure. This is a limitation of PHPStorm.
 
-This means, you will have to install the `hyva-coding-standard` stand alone inside the Magento base directory. You probably want to configure it as an excluded directory in PHPStorm, so it isn't indexed.  
+This means, you will have to install the `hyva-coding-standard` stand alone inside the Magento base directory. You probably want to configure it as an excluded directory in PHPStorm, so it isn't indexed.
 For example, in case of warden, the commands to create a stand-alone installation of the coding standard inside of the project director look like this:
 
 ```sh
@@ -96,10 +96,9 @@ Then configure PHPStorm to use the coding standard using the file system paths i
 12. Enter the absolute path to the HyvaThemes ruleset in your stand-alone installation (for example, in my case that is `/var/www/html/hyva-coding-standard/src/HyvaThemes`).
 13. Click "OK" to apply the path to the coding standard, and click "OK" again to close the settings dialog.
 
+### License
 
-## License
+This package is licensed under the **Open Software License (OSL 3.0)**.
 
-Copyright © Hyvä Themes 2022-present. All rights reserved.  
-This product is licensed under the BSD-3-Clause license.  
-See the [LICENSE.md](LICENSE.md) file for more information.
-
+* **Copyright:** Copyright © 2020-present Hyvä Themes. All rights reserved.
+* **License Text (OSL 3.0):** The full text of the OSL 3.0 license can be found in the `LICENSE.txt` file within this package, and is also available online at [http://opensource.org/licenses/osl-3.0.php](http://opensource.org/licenses/osl-3.0.php).

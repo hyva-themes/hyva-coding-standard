@@ -2,9 +2,8 @@
 <!--
 /**
  * Hyvä Themes - https://hyva.io
- * Copyright © Hyvä Themes 2022-present. All rights reserved.
- * This product is licensed under the BSD-3-Clause license.
- * See LICENSE.txt for details.
+ * Copyright © Hyvä Themes. All rights reserved.
+ * See COPYING.txt for license details.
  */
 -->
 <ruleset name="HyvaThemes">
@@ -14,7 +13,7 @@
     <arg name="extensions" value="php,phtml,css,graphqls,html,xml,js"/>
 
     <exclude-pattern>*/node_modules/*</exclude-pattern>
-    
+
     <rule name="HyvaThemes.Templates.BlockEscapeInTemplate">
         <include-pattern>*\.phtml$</include-pattern>
     </rule>
