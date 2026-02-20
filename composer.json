@@ -1,5 +1,6 @@
 {
     "name": "hyva-themes/hyva-coding-standard",
+    "type": "phpcodesniffer-standard",
     "description": "A set of Hyvä specific PHP CodeSniffer rules extending the Magento Coding Standard",
     "license": "OSL-3.0",
     "require": {
