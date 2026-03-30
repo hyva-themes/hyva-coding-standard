@@ -10,7 +10,7 @@
     <description>Hyvä-Themes Coding Standard</description>
 
     <!-- File extensions to be checked. -->
-    <arg name="extensions" value="php,phtml,css,graphqls,html,xml,js"/>
+    <arg name="extensions" value="php,phtml,xml"/>
 
     <exclude-pattern>*/node_modules/*</exclude-pattern>
 
@@ -29,6 +29,9 @@
     <rule ref="Magento2">
         <exclude name="Magento2.Annotation"/>
         <exclude name="Magento2.Commenting.ClassPropertyPHPDocFormatting"/>
+        <exclude name="Squiz.CSS.NamedColours"/>
+        <exclude name="Magento2.Less"/>
+        <exclude name="Magento2.GraphQL"/>
 
         <!-- temporarily -->
         <exclude name="Magento2.Templates.ThisInTemplate.FoundThis"/>
