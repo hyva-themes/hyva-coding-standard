@@ -27,7 +27,7 @@ If you still want to go ahead, because you are sure the dependencies shared with
 
 ```sh
 composer require --dev hyva-themes/hyva-coding-standard
-./vendor/bin/phpcs --config-set installed_paths ../../magento/magento-coding-standard,../../phpcompatibility/php-compatibilit,../../hyva-themes/hyva-coding-standard/src
+./vendor/bin/phpcs --config-set installed_paths ../../magento/magento-coding-standard/Magento2,../../magento/php-compatibility-fork,../../phpcsstandards/phpcsutils,../../hyva-themes/hyva-coding-standard/src
 ```
 
 ## Command-Line Usage
@@ -61,7 +61,7 @@ The dialog details also depend on the PHPStorm version. These instructions are b
 6. Click the "Validate" button, then close the dialog with "OK" if everything is configured correctly.
 7. In the PHPStorm settings, navigate to "Editor > Inspections > PHP > Quality Tools"
 8. Select "PHP_CodeSniffer validation"
-9. Ensure the file name extension input contains "php,phtml,css"
+9. Ensure the file name extension input contains "php,phtml,xml"
 10. In the "Coding Standard" dropdown, select "Custom"
 11. Click the button with the three dots beside the dropdown
 12. Enter the absolute path to the HyvaThemes ruleset in your stand-alone installation (for example, in my case that is `/Users/vinai/hyva-coding-standard/src/HyvaThemes`).
@@ -90,7 +90,7 @@ Then configure PHPStorm to use the coding standard using the file system paths i
 6. Click the "Validate" button, then close the dialog with "OK" if everything is configured correctly.
 7. In the PHPStorm settings, navigate to "Editor > Inspections > PHP > Quality Tools"
 8. Select "PHP_CodeSniffer validation"
-9. Ensure the file name extension input contains "php,phtml,css"
+9. Ensure the file name extension input contains "php,phtml,xml"
 10. In the "Coding Standard" dropdown, select "Custom"
 11. Click the button with the three dots beside the dropdown
 12. Enter the absolute path to the HyvaThemes ruleset in your stand-alone installation (for example, in my case that is `/var/www/html/hyva-coding-standard/src/HyvaThemes`).
