@@ -21,7 +21,10 @@ class InheritsMethodAnnotationSniff implements Sniff
 
     public function process(File $phpcsFile, $stackPtr)
     {
-        $classStartPtr = $phpcsFile->findPrevious([T_CLASS, T_ANON_CLASS], $stackPtr, 0);
+        $classStartPtr = $phpcsFile->findPrevious([T_CLASS, T_ANON_CLASS, T_INTERFACE, T_TRAIT, T_ENUM], $stackPtr, 0);
+        if ($classStartPtr === false) {
+            return;
+        }
         $commentEndPtr = $phpcsFile->findPrevious(T_DOC_COMMENT_CLOSE_TAG, $stackPtr, $classStartPtr);
         if (!$commentEndPtr) {
             // No comment block
