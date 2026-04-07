@@ -65,6 +65,21 @@ EOF
         $this->assertSame(0, $file->getWarningCount());
     }
 
+    public function testFrontendPassesWithCspCallAfterScriptWithoutSemicolon(): void
+    {
+        $file = $this->processCodeForArea(<<<'EOF'
+<?php
+use Hyva\Theme\ViewModel\HyvaCsp;
+/** @var HyvaCsp $hyvaCsp */
+?>
+<script>var x = 1;</script>
+<?php $hyvaCsp->registerInlineScript() ?>
+EOF
+            , 'frontend');
+
+        $this->assertSame(0, $file->getWarningCount());
+    }
+
     public function testFrontendPassesWithMultipleScriptBlocks(): void
     {
         $file = $this->processCodeForArea(<<<'EOF'
@@ -176,6 +191,21 @@ use Hyva\Theme\ViewModel\HyvaCsp;
 ?>
 <script>var x = 1;</script>
 <?php if (isset($hyvaCsp)) $hyvaCsp->registerInlineScript(); ?>
+EOF
+            , 'base');
+
+        $this->assertSame(0, $file->getWarningCount());
+    }
+
+    public function testBasePassesWithIssetGuardedCspCallWithoutSemicolon(): void
+    {
+        $file = $this->processCodeForArea(<<<'EOF'
+<?php
+use Hyva\Theme\ViewModel\HyvaCsp;
+/** @var HyvaCsp $hyvaCsp */
+?>
+<script>var x = 1;</script>
+<?php if (isset($hyvaCsp)) $hyvaCsp->registerInlineScript() ?>
 EOF
             , 'base');
 
