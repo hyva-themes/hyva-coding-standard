@@ -2,24 +2,27 @@
 <!--
 /**
  * Hyvä Themes - https://hyva.io
- * Copyright © Hyvä Themes 2022-present. All rights reserved.
- * This product is licensed under the BSD-3-Clause license.
- * See LICENSE.txt for details.
+ * Copyright © Hyvä Themes. All rights reserved.
+ * See COPYING.txt for license details.
  */
 -->
 <ruleset name="HyvaThemes">
     <description>Hyvä-Themes Coding Standard</description>
 
     <!-- File extensions to be checked. -->
-    <arg name="extensions" value="php,phtml,css,graphqls,html,xml,js"/>
+    <arg name="extensions" value="php,phtml,xml"/>
 
     <exclude-pattern>*/node_modules/*</exclude-pattern>
-    
+
     <rule name="HyvaThemes.Templates.BlockEscapeInTemplate">
         <include-pattern>*\.phtml$</include-pattern>
     </rule>
 
     <rule name="HyvaThemes.Templates.IfInTemplate">
+        <include-pattern>*\.phtml$</include-pattern>
+    </rule>
+
+    <rule name="HyvaThemes.Templates.CspRegisterInlineScript">
         <include-pattern>*\.phtml$</include-pattern>
     </rule>
 
@@ -30,6 +33,9 @@
     <rule ref="Magento2">
         <exclude name="Magento2.Annotation"/>
         <exclude name="Magento2.Commenting.ClassPropertyPHPDocFormatting"/>
+        <exclude name="Squiz.CSS.NamedColours"/>
+        <exclude name="Magento2.Less"/>
+        <exclude name="Magento2.GraphQL"/>
 
         <!-- temporarily -->
         <exclude name="Magento2.Templates.ThisInTemplate.FoundThis"/>

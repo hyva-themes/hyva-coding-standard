@@ -1,9 +1,8 @@
 <?php
 /**
  * Hyvä Themes - https://hyva.io
- * Copyright © Hyvä Themes 2022-present. All rights reserved.
- * This product is licensed under the BSD-3-Clause license.
- * See LICENSE.txt for details.
+ * Copyright © Hyvä Themes. All rights reserved.
+ * See COPYING.txt for license details.
  */
 
 declare(strict_types=1);
@@ -22,7 +21,10 @@ class InheritsMethodAnnotationSniff implements Sniff
 
     public function process(File $phpcsFile, $stackPtr)
     {
-        $classStartPtr = $phpcsFile->findPrevious([T_CLASS, T_ANON_CLASS], $stackPtr, 0);
+        $classStartPtr = $phpcsFile->findPrevious([T_CLASS, T_ANON_CLASS, T_INTERFACE, T_TRAIT, T_ENUM], $stackPtr, 0);
+        if ($classStartPtr === false) {
+            return;
+        }
         $commentEndPtr = $phpcsFile->findPrevious(T_DOC_COMMENT_CLOSE_TAG, $stackPtr, $classStartPtr);
         if (!$commentEndPtr) {
             // No comment block
