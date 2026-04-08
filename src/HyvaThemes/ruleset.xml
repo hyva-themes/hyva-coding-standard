@@ -30,6 +30,11 @@
         <include-pattern>*\.php$</include-pattern>
     </rule>
 
+    <rule name="HyvaThemes.PHPCompatibility.SetTestVersion">
+        <include-pattern>*\.php$</include-pattern>
+        <include-pattern>*\.phtml$</include-pattern>
+    </rule>
+
     <rule ref="Magento2">
         <exclude name="Magento2.Annotation"/>
         <exclude name="Magento2.Commenting.ClassPropertyPHPDocFormatting"/>
