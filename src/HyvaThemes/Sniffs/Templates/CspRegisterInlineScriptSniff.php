@@ -32,6 +32,9 @@ class CspRegisterInlineScriptSniff implements Sniff
     /** @var array<string, bool> */
     private $checkedFiles = [];
 
+    /** @var array<string, string> */
+    private $fileAreas = [];
+
     public function register()
     {
         return [T_INLINE_HTML];
@@ -67,14 +70,17 @@ class CspRegisterInlineScriptSniff implements Sniff
 
     private function detectArea(File $phpcsFile): string
     {
-        $path = $phpcsFile->getFilename();
-        if (strpos($path, 'view/adminhtml/') !== false) {
-            return self::AREA_ADMINHTML;
+        $filename = $phpcsFile->getFilename();
+        if (! isset($this->fileAreas[$filename])) {
+            if (strpos($filename, 'view/adminhtml/') !== false) {
+                $this->fileAreas[$filename] = self::AREA_ADMINHTML;
+            } elseif (strpos($filename, 'view/base/') !== false) {
+                $this->fileAreas[$filename] = self::AREA_BASE;
+            } else {
+                $this->fileAreas[$filename] = self::AREA_FRONTEND;
+            }
         }
-        if (strpos($path, 'view/base/') !== false) {
-            return self::AREA_BASE;
-        }
-        return self::AREA_FRONTEND;
+        return $this->fileAreas[$filename];
     }
 
     private function checkRegisterInlineScriptFollows(
@@ -104,7 +110,7 @@ class CspRegisterInlineScriptSniff implements Sniff
             if ($this->addFixableCspWarning($phpcsFile, $stackPtr, $area)) {
                 $fixLast = true;
             }
-            $this->applyCspFix($phpcsFile, $stackPtr, $content, $cspSnippet, $fixIntermediates, $fixLast);
+            $this->applyCspFix($phpcsFile, $stackPtr, $content, $cspSnippet, $scriptCloseCount, $fixIntermediates, $fixLast);
             return;
         }
 
@@ -117,7 +123,7 @@ class CspRegisterInlineScriptSniff implements Sniff
                 if ($this->addFixableCspWarning($phpcsFile, $stackPtr, $area)) {
                     $fixLast = true;
                 }
-                $this->applyCspFix($phpcsFile, $stackPtr, $content, $cspSnippet, $fixIntermediates, $fixLast);
+                $this->applyCspFix($phpcsFile, $stackPtr, $content, $cspSnippet, $scriptCloseCount, $fixIntermediates, $fixLast);
                 return;
             }
             $nextPtr++;
@@ -127,7 +133,7 @@ class CspRegisterInlineScriptSniff implements Sniff
             if ($this->addFixableCspWarning($phpcsFile, $stackPtr, $area)) {
                 $fixLast = true;
             }
-            $this->applyCspFix($phpcsFile, $stackPtr, $content, $cspSnippet, $fixIntermediates, $fixLast);
+            $this->applyCspFix($phpcsFile, $stackPtr, $content, $cspSnippet, $scriptCloseCount, $fixIntermediates, $fixLast);
             return;
         }
 
@@ -163,7 +169,7 @@ class CspRegisterInlineScriptSniff implements Sniff
         }
 
         // Fix intermediate scripts even if last script is correct
-        $this->applyCspFix($phpcsFile, $stackPtr, $content, $cspSnippet, $fixIntermediates, false);
+        $this->applyCspFix($phpcsFile, $stackPtr, $content, $cspSnippet, $scriptCloseCount, $fixIntermediates, false);
     }
 
     private function getCspSnippet(string $area): string
@@ -196,6 +202,7 @@ class CspRegisterInlineScriptSniff implements Sniff
         int $stackPtr,
         string $content,
         string $cspSnippet,
+        int $totalScripts,
         bool $fixIntermediates,
         bool $fixLast
     ): void {
@@ -205,7 +212,6 @@ class CspRegisterInlineScriptSniff implements Sniff
 
         $phpcsFile->fixer->beginChangeset();
 
-        $totalScripts = substr_count(strtolower($content), '</script>');
         $newContent = '';
         $offset = 0;
 
@@ -240,38 +246,11 @@ class CspRegisterInlineScriptSniff implements Sniff
 
     private function checkUseImport(File $phpcsFile, int $reportPtr): void
     {
-        $tokens = $phpcsFile->getTokens();
-        $lastUseSemicolon = null;
-
-        foreach ($tokens as $ptr => $token) {
-            if ($token['code'] !== T_USE) {
-                continue;
-            }
-
-            // Skip closure use (preceded by close parenthesis)
-            $prevPtr = $phpcsFile->findPrevious(T_WHITESPACE, $ptr - 1, null, true);
-            if ($prevPtr !== false && $tokens[$prevPtr]['code'] === T_CLOSE_PARENTHESIS) {
-                continue;
-            }
-
-            // Collect use statement content (skip whitespace)
-            $useContent = '';
-            $lookPtr = $ptr + 1;
-            while (isset($tokens[$lookPtr]) && $tokens[$lookPtr]['code'] !== T_SEMICOLON) {
-                if ($tokens[$lookPtr]['code'] !== T_WHITESPACE) {
-                    $useContent .= $tokens[$lookPtr]['content'];
-                }
-                $lookPtr++;
-            }
-
-            if (isset($tokens[$lookPtr])) {
-                $lastUseSemicolon = $lookPtr;
-            }
-
-            if ($useContent === 'Hyva\Theme\ViewModel\HyvaCsp') {
-                return;
-            }
+        if ($this->hasHyvaCspUseImport($phpcsFile)) {
+            return;
         }
+
+        $lastUseSemicolon = $this->findLastUseSemicolon($phpcsFile);
 
         if ($phpcsFile->addFixableWarning(self::MSG_MISSING_USE_IMPORT, $reportPtr, 'MissingHyvaCspUseImport')) {
             $phpcsFile->fixer->beginChangeset();
@@ -287,6 +266,37 @@ class CspRegisterInlineScriptSniff implements Sniff
             }
             $phpcsFile->fixer->endChangeset();
         }
+    }
+
+    private function hasHyvaCspUseImport(File $phpcsFile): bool
+    {
+        $tokens = $phpcsFile->getTokens();
+
+        foreach ($tokens as $ptr => $token) {
+            if ($token['code'] !== T_USE) {
+                continue;
+            }
+
+            $prevPtr = $phpcsFile->findPrevious(T_WHITESPACE, $ptr - 1, null, true);
+            if ($prevPtr !== false && $tokens[$prevPtr]['code'] === T_CLOSE_PARENTHESIS) {
+                continue;
+            }
+
+            $useContent = '';
+            $lookPtr = $ptr + 1;
+            while (isset($tokens[$lookPtr]) && $tokens[$lookPtr]['code'] !== T_SEMICOLON) {
+                if ($tokens[$lookPtr]['code'] !== T_WHITESPACE) {
+                    $useContent .= $tokens[$lookPtr]['content'];
+                }
+                $lookPtr++;
+            }
+
+            if ($useContent === 'Hyva\Theme\ViewModel\HyvaCsp') {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function checkVarAnnotation(File $phpcsFile, int $reportPtr): void
