@@ -13,6 +13,7 @@
     <arg name="extensions" value="php,phtml,xml"/>
 
     <exclude-pattern>*/node_modules/*</exclude-pattern>
+    <exclude-pattern>*/playwright-report/*</exclude-pattern>
 
     <rule name="HyvaThemes.Templates.BlockEscapeInTemplate">
         <include-pattern>*\.phtml$</include-pattern>
