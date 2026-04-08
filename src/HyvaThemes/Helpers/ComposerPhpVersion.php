@@ -91,7 +91,7 @@ class ComposerPhpVersion
                 $version = $matches[1];
 
                 // For < and <= operators, this is an upper bound, not a lower bound
-                if (preg_match('/^<=?\s/', $part)) {
+                if (preg_match('/^<=?/', $part)) {
                     continue;
                 }
 

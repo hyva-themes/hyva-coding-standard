@@ -112,4 +112,36 @@ EOF
 
         $this->assertSame(1, $file->getWarningCount());
     }
+
+    public function testWarnsIfNoSpaceAfterElseifColon(): void
+    {
+        $file = $this->processCode(<<<EOF
+<div>
+<?php if (true): ?>
+<h1>yes</h1>
+<?php elseif (false):?>
+<h1>maybe</h1>
+<?php endif ?>
+</div>
+EOF
+        );
+
+        $this->assertSame(1, $file->getWarningCount());
+    }
+
+    public function testAllowsElseifWithCompliantColonPlacement(): void
+    {
+        $file = $this->processCode(<<<EOF
+<div>
+<?php if (true): ?>
+<h1>yes</h1>
+<?php elseif (false): ?>
+<h1>maybe</h1>
+<?php endif ?>
+</div>
+EOF
+        );
+
+        $this->assertSame(0, $file->getWarningCount());
+    }
 }

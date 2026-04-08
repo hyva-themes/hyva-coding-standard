@@ -30,7 +30,7 @@ class SetTestVersionSniffTest extends SniffTestAbstract
 
     public function testSniffSetsTestVersionFromComposerJson(): void
     {
-        // The sniff uses getcwd(), so we test that it runs without error
+        // The sniff uses the file's directory, so we test that it runs without error
         // and sets a testVersion config value
         Config::setConfigData('testVersion', null, true);
 

@@ -27,7 +27,7 @@
         <include-pattern>*\.phtml$</include-pattern>
     </rule>
 
-    <rule name="HyvaThemes.Annotation.InheritsMethodAnnotationSniff">
+    <rule name="HyvaThemes.Annotation.InheritsMethodAnnotation">
         <include-pattern>*\.php$</include-pattern>
     </rule>
 

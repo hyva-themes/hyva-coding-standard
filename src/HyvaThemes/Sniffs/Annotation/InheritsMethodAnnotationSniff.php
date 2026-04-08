@@ -31,6 +31,14 @@ class InheritsMethodAnnotationSniff implements Sniff
             return;
         }
 
+        // Verify the doc comment belongs to this function (only whitespace and modifiers between them)
+        $allowedBetween = [T_WHITESPACE, T_PUBLIC, T_PROTECTED, T_PRIVATE, T_STATIC, T_ABSTRACT, T_FINAL, T_READONLY];
+        for ($i = $commentEndPtr + 1; $i < $stackPtr; $i++) {
+            if (!in_array($phpcsFile->getTokens()[$i]['code'], $allowedBetween, true)) {
+                return;
+            }
+        }
+
         $commentStartPtr = $phpcsFile->findPrevious(T_DOC_COMMENT_OPEN_TAG, $commentEndPtr, $classStartPtr);
 
         for ($ptr = $commentStartPtr; $ptr < $commentEndPtr; $ptr++) {

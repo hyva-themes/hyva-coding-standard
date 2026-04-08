@@ -185,4 +185,24 @@ EOF
 
         $this->assertSame(1, $file->getWarningCount());
     }
+
+    public function testIgnoresInheritDocOnPropertyAboveMethod(): void
+    {
+        $file = $this->processCode(<<<EOF
+<?php
+
+class FooBar {
+    /** @inheritDoc */
+    private \$bar;
+
+    public function baz(): void
+    {
+
+    }
+}
+EOF
+        );
+
+        $this->assertSame(0, $file->getWarningCount());
+    }
 }
