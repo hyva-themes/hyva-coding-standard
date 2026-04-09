@@ -404,6 +404,29 @@ EOF
         );
     }
 
+    public function testFixerInsertsUseImportAfterDeclareWhenNoUseExists(): void
+    {
+        $fixed = $this->fixCodeForArea(<<<'EOF'
+<?php
+/**
+ * License comment
+ */
+
+declare(strict_types=1);
+
+/** @var HyvaCsp $hyvaCsp */
+?>
+<script>var x = 1;</script>
+<?php $hyvaCsp->registerInlineScript(); ?>
+EOF
+            , 'frontend');
+
+        $this->assertStringContainsString(
+            "declare(strict_types=1);\n\nuse Hyva\\Theme\\ViewModel\\HyvaCsp;",
+            $fixed
+        );
+    }
+
     public function testFixerInsertsMissingUseImportAfterExistingUse(): void
     {
         $fixed = $this->fixCodeForArea(<<<'EOF'
@@ -471,6 +494,32 @@ EOF
 
         $this->assertStringContainsString('use Hyva\\Theme\\ViewModel\\HyvaCsp;', $fixed);
         $this->assertStringContainsString('/** @var HyvaCsp $hyvaCsp */', $fixed);
+    }
+
+    public function testFixerInsertsVarAnnotationInHeaderNotAfterBodyVar(): void
+    {
+        $fixed = $this->fixCodeForArea(<<<'EOF'
+<?php
+use Hyva\Theme\ViewModel\HyvaCsp;
+use Magento\Catalog\Model\Product;
+/** @var Product $product */
+?>
+<div>
+    <?php /** @var Product $item */ ?>
+    <?php foreach ($items as $item): ?>
+        <span><?= $item->getName() ?></span>
+    <?php endforeach; ?>
+</div>
+<script>var x = 1;</script>
+<?php $hyvaCsp->registerInlineScript(); ?>
+EOF
+            , 'frontend');
+
+        // Annotation should be in the header, after the existing header @var
+        $this->assertStringContainsString(
+            "/** @var Product \$product */\n/** @var HyvaCsp \$hyvaCsp */",
+            $fixed
+        );
     }
 
     // --- Script type filtering tests ---

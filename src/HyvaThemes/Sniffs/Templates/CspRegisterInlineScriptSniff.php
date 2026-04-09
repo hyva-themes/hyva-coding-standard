@@ -384,26 +384,34 @@ class CspRegisterInlineScriptSniff implements Sniff
     private function checkVarAnnotation(File $phpcsFile, int $reportPtr): void
     {
         $tokens = $phpcsFile->getTokens();
-        $lastVarCommentClose = null;
 
-        foreach ($tokens as $ptr => $token) {
+        // Check if HyvaCsp annotation already exists anywhere in the file
+        foreach ($tokens as $token) {
             if ($token['code'] === T_DOC_COMMENT_STRING && strpos($token['content'], 'HyvaCsp') !== false) {
                 return;
+            }
+        }
+
+        // Find insertion point: last @var in the file header (before first non-whitespace HTML)
+        $lastHeaderVarClose = null;
+        foreach ($tokens as $ptr => $token) {
+            if ($token['code'] === T_INLINE_HTML && trim($token['content']) !== '') {
+                break;
             }
             if ($token['code'] === T_DOC_COMMENT_TAG && $token['content'] === '@var') {
                 $closePtr = $phpcsFile->findNext(T_DOC_COMMENT_CLOSE_TAG, $ptr + 1);
                 if ($closePtr !== false) {
-                    $lastVarCommentClose = $closePtr;
+                    $lastHeaderVarClose = $closePtr;
                 }
             }
         }
 
         if ($phpcsFile->addFixableWarning(self::MSG_MISSING_VAR_ANNOTATION, $reportPtr, 'MissingHyvaCspAnnotation')) {
             $phpcsFile->fixer->beginChangeset();
-            if ($lastVarCommentClose !== null) {
-                $phpcsFile->fixer->addContent($lastVarCommentClose, "\n/** @var HyvaCsp \$hyvaCsp */");
+            if ($lastHeaderVarClose !== null) {
+                $phpcsFile->fixer->addContent($lastHeaderVarClose, "\n/** @var HyvaCsp \$hyvaCsp */");
             } else {
-                // No @var annotations - insert after last use statement
+                // No @var annotations in header - insert after last use statement
                 $lastUseSemicolon = $this->findLastUseSemicolon($phpcsFile);
                 if ($lastUseSemicolon !== null) {
                     $phpcsFile->fixer->addContent($lastUseSemicolon, "\n\n/** @var HyvaCsp \$hyvaCsp */");
@@ -431,6 +439,19 @@ class CspRegisterInlineScriptSniff implements Sniff
         } elseif (isset($tokens[$ptr + 1]) && $tokens[$ptr + 1]['code'] === T_DOC_COMMENT_OPEN_TAG) {
             $ptr++;
             while (isset($tokens[$ptr + 1]) && $tokens[$ptr]['code'] !== T_DOC_COMMENT_CLOSE_TAG) {
+                $ptr++;
+            }
+        }
+
+        // Skip whitespace after comment
+        while (isset($tokens[$ptr + 1]) && $tokens[$ptr + 1]['code'] === T_WHITESPACE) {
+            $ptr++;
+        }
+
+        // Skip declare(strict_types=1); if present
+        if (isset($tokens[$ptr + 1]) && $tokens[$ptr + 1]['code'] === T_DECLARE) {
+            $ptr++;
+            while (isset($tokens[$ptr]) && $tokens[$ptr]['code'] !== T_SEMICOLON) {
                 $ptr++;
             }
         }
