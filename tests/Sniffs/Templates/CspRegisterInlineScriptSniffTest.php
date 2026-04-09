@@ -473,6 +473,146 @@ EOF
         $this->assertStringContainsString('/** @var HyvaCsp $hyvaCsp */', $fixed);
     }
 
+    // --- Script type filtering tests ---
+
+    public function testFrontendPassesWithJsonScriptWithoutCspCall(): void
+    {
+        $file = $this->processCodeForArea(<<<'EOF'
+<?php
+/** some template */
+?>
+<script type="text/json">{"key": "value"}</script>
+EOF
+            , 'frontend');
+
+        $this->assertSame(0, $file->getWarningCount());
+    }
+
+    public function testFrontendPassesWithApplicationJsonScriptWithoutCspCall(): void
+    {
+        $file = $this->processCodeForArea(<<<'EOF'
+<?php
+/** some template */
+?>
+<script type="application/json">{"key": "value"}</script>
+EOF
+            , 'frontend');
+
+        $this->assertSame(0, $file->getWarningCount());
+    }
+
+    public function testFrontendPassesWithApplicationLdJsonScriptWithoutCspCall(): void
+    {
+        $file = $this->processCodeForArea(<<<'EOF'
+<?php
+/** some template */
+?>
+<script type="application/ld+json">{"@context": "https://schema.org"}</script>
+EOF
+            , 'frontend');
+
+        $this->assertSame(0, $file->getWarningCount());
+    }
+
+    public function testFrontendRequiresCspForSpeculationrulesScript(): void
+    {
+        $file = $this->processCodeForArea(<<<'EOF'
+<?php
+use Hyva\Theme\ViewModel\HyvaCsp;
+/** @var HyvaCsp $hyvaCsp */
+?>
+<script type="speculationrules">{"prefetch": []}</script>
+<div>content</div>
+EOF
+            , 'frontend');
+
+        $this->assertGreaterThan(0, $file->getWarningCount());
+    }
+
+    public function testFrontendRequiresCspForExplicitTextJavascriptType(): void
+    {
+        $file = $this->processCodeForArea(<<<'EOF'
+<?php
+use Hyva\Theme\ViewModel\HyvaCsp;
+/** @var HyvaCsp $hyvaCsp */
+?>
+<script type="text/javascript">var x = 1;</script>
+<div>content</div>
+EOF
+            , 'frontend');
+
+        $this->assertGreaterThan(0, $file->getWarningCount());
+    }
+
+    public function testFrontendPassesWithMixedScriptTypes(): void
+    {
+        $file = $this->processCodeForArea(<<<'EOF'
+<?php
+use Hyva\Theme\ViewModel\HyvaCsp;
+/** @var HyvaCsp $hyvaCsp */
+?>
+<script>var x = 1;</script>
+<?php $hyvaCsp->registerInlineScript(); ?>
+<script type="text/json">{"key": "value"}</script>
+EOF
+            , 'frontend');
+
+        $this->assertSame(0, $file->getWarningCount());
+    }
+
+    public function testFrontendNoUseImportRequiredForJsonScriptsOnly(): void
+    {
+        $file = $this->processCodeForArea(<<<'EOF'
+<?php
+/** some template */
+?>
+<script type="application/json">{"key": "value"}</script>
+<script type="text/json">{"other": "data"}</script>
+EOF
+            , 'frontend');
+
+        $this->assertSame(0, $file->getWarningCount());
+    }
+
+    public function testFrontendPassesWithCrossTokenJsonScript(): void
+    {
+        $file = $this->processCodeForArea(<<<'EOF'
+<?php
+/** some template */
+$data = ['key' => 'value'];
+?>
+<script type="application/json"><?= json_encode($data) ?></script>
+EOF
+            , 'frontend');
+
+        $this->assertSame(0, $file->getWarningCount());
+    }
+
+    public function testFixerSkipsJsonScriptWhenFixingJsScript(): void
+    {
+        $fixed = $this->fixCodeForArea(<<<'EOF'
+<?php
+use Hyva\Theme\ViewModel\HyvaCsp;
+/** @var HyvaCsp $hyvaCsp */
+?>
+<script>var x = 1;</script>
+<div>content</div>
+<script type="text/json">{"key": "value"}</script>
+EOF
+            , 'frontend');
+
+        // CSP call inserted after the JS script
+        $this->assertStringContainsString(
+            "var x = 1;</script>\n<?php \$hyvaCsp->registerInlineScript(); ?>\n<div>",
+            $fixed
+        );
+        // No CSP call after the JSON script
+        $this->assertStringNotContainsString(
+            '{"key": "value"}</script>' . "\n" . '<?php $hyvaCsp->registerInlineScript();',
+            $fixed
+        );
+    }
+
     /**
      * Collect all warning messages from the warnings array.
      *

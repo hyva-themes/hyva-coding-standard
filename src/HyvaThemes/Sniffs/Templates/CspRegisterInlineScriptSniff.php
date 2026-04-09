@@ -29,6 +29,8 @@ class CspRegisterInlineScriptSniff implements Sniff
     private const AREA_BASE = 'base';
     private const AREA_ADMINHTML = 'adminhtml';
 
+    private const TYPES_REQUIRING_CSP = ['text/javascript', 'speculationrules'];
+
     /** @var array<string, bool> */
     private $checkedFiles = [];
 
@@ -59,13 +61,26 @@ class CspRegisterInlineScriptSniff implements Sniff
             return;
         }
 
+        $scriptTypes = $this->getScriptTypes($phpcsFile, $stackPtr, $content);
+        $hasCspRequiringScript = false;
+        foreach ($scriptTypes as $type) {
+            if ($this->scriptTypeRequiresCsp($type)) {
+                $hasCspRequiringScript = true;
+                break;
+            }
+        }
+
+        if (! $hasCspRequiringScript) {
+            return;
+        }
+
         if (! isset($this->checkedFiles[$filename])) {
             $this->checkedFiles[$filename] = true;
             $this->checkUseImport($phpcsFile, $stackPtr);
             $this->checkVarAnnotation($phpcsFile, $stackPtr);
         }
 
-        $this->checkRegisterInlineScriptFollows($phpcsFile, $stackPtr, $content, $area);
+        $this->checkRegisterInlineScriptFollows($phpcsFile, $stackPtr, $content, $area, $scriptTypes);
     }
 
     private function detectArea(File $phpcsFile): string
@@ -87,20 +102,27 @@ class CspRegisterInlineScriptSniff implements Sniff
         File $phpcsFile,
         int $stackPtr,
         string $content,
-        string $area
+        string $area,
+        array $scriptTypes
     ): void {
         $cspSnippet = $this->getCspSnippet($area);
         $scriptCloseCount = substr_count(strtolower($content), '</script>');
-        $fixIntermediates = false;
-        $fixLast = false;
+        $fixIndices = [];
 
-        // Multiple </script> in one HTML block means at least some are missing CSP calls
-        if ($scriptCloseCount > 1) {
-            for ($i = 0; $i < $scriptCloseCount - 1; $i++) {
+        // Handle intermediate </script> tags (all except the last in this token)
+        for ($i = 0; $i < $scriptCloseCount - 1; $i++) {
+            if ($this->scriptTypeRequiresCsp($scriptTypes[$i] ?? null)) {
                 if ($this->addFixableCspWarning($phpcsFile, $stackPtr, $area)) {
-                    $fixIntermediates = true;
+                    $fixIndices[] = $i;
                 }
             }
+        }
+
+        // Handle the last </script> in the token
+        $lastIndex = $scriptCloseCount - 1;
+        if (! $this->scriptTypeRequiresCsp($scriptTypes[$lastIndex] ?? null)) {
+            $this->applyCspFix($phpcsFile, $stackPtr, $content, $cspSnippet, $fixIndices);
+            return;
         }
 
         // Check content after the last </script> is whitespace-only
@@ -108,9 +130,9 @@ class CspRegisterInlineScriptSniff implements Sniff
         $afterScript = substr($content, $lastPos + 9);
         if (trim($afterScript) !== '') {
             if ($this->addFixableCspWarning($phpcsFile, $stackPtr, $area)) {
-                $fixLast = true;
+                $fixIndices[] = $lastIndex;
             }
-            $this->applyCspFix($phpcsFile, $stackPtr, $content, $cspSnippet, $scriptCloseCount, $fixIntermediates, $fixLast);
+            $this->applyCspFix($phpcsFile, $stackPtr, $content, $cspSnippet, $fixIndices);
             return;
         }
 
@@ -121,9 +143,9 @@ class CspRegisterInlineScriptSniff implements Sniff
         while (isset($tokens[$nextPtr]) && $tokens[$nextPtr]['code'] === T_INLINE_HTML) {
             if (trim($tokens[$nextPtr]['content']) !== '') {
                 if ($this->addFixableCspWarning($phpcsFile, $stackPtr, $area)) {
-                    $fixLast = true;
+                    $fixIndices[] = $lastIndex;
                 }
-                $this->applyCspFix($phpcsFile, $stackPtr, $content, $cspSnippet, $scriptCloseCount, $fixIntermediates, $fixLast);
+                $this->applyCspFix($phpcsFile, $stackPtr, $content, $cspSnippet, $fixIndices);
                 return;
             }
             $nextPtr++;
@@ -131,9 +153,9 @@ class CspRegisterInlineScriptSniff implements Sniff
 
         if (! isset($tokens[$nextPtr]) || $tokens[$nextPtr]['code'] !== T_OPEN_TAG) {
             if ($this->addFixableCspWarning($phpcsFile, $stackPtr, $area)) {
-                $fixLast = true;
+                $fixIndices[] = $lastIndex;
             }
-            $this->applyCspFix($phpcsFile, $stackPtr, $content, $cspSnippet, $scriptCloseCount, $fixIntermediates, $fixLast);
+            $this->applyCspFix($phpcsFile, $stackPtr, $content, $cspSnippet, $fixIndices);
             return;
         }
 
@@ -162,7 +184,7 @@ class CspRegisterInlineScriptSniff implements Sniff
         }
 
         // Fix intermediate scripts even if last script is correct
-        $this->applyCspFix($phpcsFile, $stackPtr, $content, $cspSnippet, $scriptCloseCount, $fixIntermediates, false);
+        $this->applyCspFix($phpcsFile, $stackPtr, $content, $cspSnippet, $fixIndices);
     }
 
     private function getCspSnippet(string $area): string
@@ -195,26 +217,25 @@ class CspRegisterInlineScriptSniff implements Sniff
         int $stackPtr,
         string $content,
         string $cspSnippet,
-        int $totalScripts,
-        bool $fixIntermediates,
-        bool $fixLast
+        array $fixIndices
     ): void {
-        if (! $fixIntermediates && ! $fixLast) {
+        if (empty($fixIndices)) {
             return;
         }
 
+        $fixSet = array_flip($fixIndices);
+        $totalScripts = substr_count(strtolower($content), '</script>');
         $phpcsFile->fixer->beginChangeset();
 
         $newContent = '';
         $offset = 0;
 
-        for ($i = 1; $i <= $totalScripts; $i++) {
+        for ($i = 0; $i < $totalScripts; $i++) {
             $pos = stripos($content, '</script>', $offset);
             $end = $pos + 9;
             $newContent .= substr($content, $offset, $end - $offset);
 
-            $isLast = ($i === $totalScripts);
-            if ((! $isLast && $fixIntermediates) || ($isLast && $fixLast)) {
+            if (isset($fixSet[$i])) {
                 $newContent .= "\n" . $cspSnippet;
             }
 
@@ -225,6 +246,67 @@ class CspRegisterInlineScriptSniff implements Sniff
 
         $phpcsFile->fixer->replaceToken($stackPtr, $newContent);
         $phpcsFile->fixer->endChangeset();
+    }
+
+    private function scriptTypeRequiresCsp(?string $type): bool
+    {
+        if ($type === null) {
+            return true;
+        }
+        return in_array(strtolower(trim($type)), self::TYPES_REQUIRING_CSP, true);
+    }
+
+    private function extractTypeFromAttributes(string $attributes): ?string
+    {
+        if (preg_match('/\btype\s*=\s*["\']([^"\']*)["\']/', $attributes, $matches)) {
+            return $matches[1];
+        }
+        if (preg_match('/\btype\s*=\s*([^\s>]+)/', $attributes, $matches)) {
+            return $matches[1];
+        }
+        return null;
+    }
+
+    /**
+     * @return array<int, string|null> Type attribute for each </script> in the content (0-based index).
+     */
+    private function getScriptTypes(File $phpcsFile, int $stackPtr, string $content): array
+    {
+        $types = [];
+
+        preg_match_all('/<script\b([^>]*)>/i', $content, $openMatches, PREG_OFFSET_CAPTURE);
+        preg_match_all('/<\/script>/i', $content, $closeMatches, PREG_OFFSET_CAPTURE);
+
+        $openCount = count($openMatches[0]);
+        $closeCount = count($closeMatches[0]);
+        $openIndex = 0;
+
+        for ($i = 0; $i < $closeCount; $i++) {
+            $closeOffset = $closeMatches[0][$i][1];
+
+            if ($openIndex < $openCount && $openMatches[0][$openIndex][1] < $closeOffset) {
+                $types[$i] = $this->extractTypeFromAttributes($openMatches[1][$openIndex][0]);
+                $openIndex++;
+            } else {
+                $types[$i] = $this->findScriptTypeFromPreviousTokens($phpcsFile, $stackPtr);
+            }
+        }
+
+        return $types;
+    }
+
+    private function findScriptTypeFromPreviousTokens(File $phpcsFile, int $stackPtr): ?string
+    {
+        $tokens = $phpcsFile->getTokens();
+        for ($i = $stackPtr - 1; $i >= 0; $i--) {
+            if ($tokens[$i]['code'] !== T_INLINE_HTML) {
+                continue;
+            }
+            if (preg_match_all('/<script\b([^>]*)>/i', $tokens[$i]['content'], $matches)) {
+                return $this->extractTypeFromAttributes(end($matches[1]));
+            }
+        }
+        return null;
     }
 
     private function checkAdminhtmlHasNoRegisterCall(File $phpcsFile): void
