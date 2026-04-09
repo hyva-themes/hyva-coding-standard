@@ -51,6 +51,18 @@
         <exclude-pattern>*\.phtml$</exclude-pattern>
     </rule>
 
+    <rule ref="Generic.WhiteSpace.ScopeIndent">
+        <properties>
+            <property name="ignoreIndentationTokens" type="array">
+                <element value="T_COMMENT"/>
+                <element value="T_DOC_COMMENT_OPEN_TAG"/>
+                <element value="T_OPEN_TAG"/>
+                <element value="T_OPEN_TAG_WITH_ECHO"/>
+                <element value="T_CLOSE_TAG"/>
+            </property>
+        </properties>
+    </rule>
+
     <rule name="Squiz.ControlStructures.ControlSignature.SpaceAfterCloseParenthesis">
         <severity>8</severity>
     </rule>
