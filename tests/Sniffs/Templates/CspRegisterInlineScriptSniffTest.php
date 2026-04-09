@@ -672,6 +672,91 @@ EOF
         $this->assertSame(0, $file->getWarningCount());
     }
 
+    public function testFrontendRequiresCspForInlineModuleScript(): void
+    {
+        $file = $this->processCodeForArea(<<<'EOF'
+<?php
+use Hyva\Theme\ViewModel\HyvaCsp;
+/** @var HyvaCsp $hyvaCsp */
+?>
+<script type="module">import { foo } from './foo.js';</script>
+<div>content</div>
+EOF
+            , 'frontend');
+
+        $this->assertGreaterThan(0, $file->getWarningCount());
+    }
+
+    public function testFrontendPassesWithInlineModuleScriptAndCspCall(): void
+    {
+        $file = $this->processCodeForArea(<<<'EOF'
+<?php
+use Hyva\Theme\ViewModel\HyvaCsp;
+/** @var HyvaCsp $hyvaCsp */
+?>
+<script type="module">import { foo } from './foo.js';</script>
+<?php $hyvaCsp->registerInlineScript(); ?>
+EOF
+            , 'frontend');
+
+        $this->assertSame(0, $file->getWarningCount());
+    }
+
+    public function testFrontendPassesWithSrcScriptWithoutCspCall(): void
+    {
+        $file = $this->processCodeForArea(<<<'EOF'
+<?php
+/** some template */
+?>
+<script src="https://example.com/app.js"></script>
+EOF
+            , 'frontend');
+
+        $this->assertSame(0, $file->getWarningCount());
+    }
+
+    public function testFrontendPassesWithTypedSrcScriptWithoutCspCall(): void
+    {
+        $file = $this->processCodeForArea(<<<'EOF'
+<?php
+/** some template */
+?>
+<script type="text/javascript" src="https://example.com/app.js"></script>
+EOF
+            , 'frontend');
+
+        $this->assertSame(0, $file->getWarningCount());
+    }
+
+    public function testFrontendPassesWithModuleSrcScriptWithoutCspCall(): void
+    {
+        $file = $this->processCodeForArea(<<<'EOF'
+<?php
+/** some template */
+?>
+<script type="module" src="https://example.com/module.js"></script>
+EOF
+            , 'frontend');
+
+        $this->assertSame(0, $file->getWarningCount());
+    }
+
+    public function testFrontendRequiresCspForMixedSrcAndInlineScripts(): void
+    {
+        $file = $this->processCodeForArea(<<<'EOF'
+<?php
+use Hyva\Theme\ViewModel\HyvaCsp;
+/** @var HyvaCsp $hyvaCsp */
+?>
+<script src="https://example.com/app.js"></script>
+<script>var x = 1;</script>
+<div>content</div>
+EOF
+            , 'frontend');
+
+        $this->assertGreaterThan(0, $file->getWarningCount());
+    }
+
     public function testFixerSkipsJsonScriptWhenFixingJsScript(): void
     {
         $fixed = $this->fixCodeForArea(<<<'EOF'

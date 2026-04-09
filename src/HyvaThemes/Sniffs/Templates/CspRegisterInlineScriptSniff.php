@@ -29,7 +29,7 @@ class CspRegisterInlineScriptSniff implements Sniff
     private const AREA_BASE = 'base';
     private const AREA_ADMINHTML = 'adminhtml';
 
-    private const TYPES_REQUIRING_CSP = ['text/javascript', 'speculationrules'];
+    private const EXECUTABLE_SCRIPT_TYPES = ['text/javascript', 'module', 'speculationrules'];
 
     /** @var array<string, bool> */
     private $checkedFiles = [];
@@ -66,10 +66,10 @@ class CspRegisterInlineScriptSniff implements Sniff
             return;
         }
 
-        $scriptTypes = $this->getScriptTypes($phpcsFile, $stackPtr, $content);
+        $scriptInfoList = $this->getScriptInfoList($phpcsFile, $stackPtr, $content);
         $hasCspRequiringScript = false;
-        foreach ($scriptTypes as $type) {
-            if ($this->scriptTypeRequiresCsp($type)) {
+        foreach ($scriptInfoList as $info) {
+            if ($this->scriptRequiresCsp($info['type'], $info['hasSrc'])) {
                 $hasCspRequiringScript = true;
                 break;
             }
@@ -85,7 +85,7 @@ class CspRegisterInlineScriptSniff implements Sniff
             $this->checkVarAnnotation($phpcsFile, $stackPtr);
         }
 
-        $this->checkRegisterInlineScriptFollows($phpcsFile, $stackPtr, $content, $area, $scriptTypes);
+        $this->checkRegisterInlineScriptFollows($phpcsFile, $stackPtr, $content, $area, $scriptInfoList);
     }
 
     private function isDefaultThemePackage(string $filename): bool
@@ -113,7 +113,7 @@ class CspRegisterInlineScriptSniff implements Sniff
         int $stackPtr,
         string $content,
         string $area,
-        array $scriptTypes
+        array $scriptInfoList
     ): void {
         $cspSnippet = $this->getCspSnippet($area);
         $scriptCloseCount = substr_count(strtolower($content), '</script>');
@@ -121,7 +121,8 @@ class CspRegisterInlineScriptSniff implements Sniff
 
         // Handle intermediate </script> tags (all except the last in this token)
         for ($i = 0; $i < $scriptCloseCount - 1; $i++) {
-            if ($this->scriptTypeRequiresCsp($scriptTypes[$i] ?? null)) {
+            $info = $scriptInfoList[$i] ?? ['type' => null, 'hasSrc' => false];
+            if ($this->scriptRequiresCsp($info['type'], $info['hasSrc'])) {
                 if ($this->addFixableCspWarning($phpcsFile, $stackPtr, $area)) {
                     $fixIndices[] = $i;
                 }
@@ -130,7 +131,8 @@ class CspRegisterInlineScriptSniff implements Sniff
 
         // Handle the last </script> in the token
         $lastIndex = $scriptCloseCount - 1;
-        if (! $this->scriptTypeRequiresCsp($scriptTypes[$lastIndex] ?? null)) {
+        $lastInfo = $scriptInfoList[$lastIndex] ?? ['type' => null, 'hasSrc' => false];
+        if (! $this->scriptRequiresCsp($lastInfo['type'], $lastInfo['hasSrc'])) {
             $this->applyCspFix($phpcsFile, $stackPtr, $content, $cspSnippet, $fixIndices);
             return;
         }
@@ -258,12 +260,20 @@ class CspRegisterInlineScriptSniff implements Sniff
         $phpcsFile->fixer->endChangeset();
     }
 
-    private function scriptTypeRequiresCsp(?string $type): bool
+    private function scriptRequiresCsp(?string $type, bool $hasSrc): bool
     {
+        if ($hasSrc) {
+            return false;
+        }
         if ($type === null) {
             return true;
         }
-        return in_array(strtolower(trim($type)), self::TYPES_REQUIRING_CSP, true);
+        return in_array(strtolower(trim($type)), self::EXECUTABLE_SCRIPT_TYPES, true);
+    }
+
+    private function hasSrcAttribute(string $attributes): bool
+    {
+        return preg_match('/\bsrc\s*=/i', $attributes) === 1;
     }
 
     private function extractTypeFromAttributes(string $attributes): ?string
@@ -278,11 +288,11 @@ class CspRegisterInlineScriptSniff implements Sniff
     }
 
     /**
-     * @return array<int, string|null> Type attribute for each </script> in the content (0-based index).
+     * @return array<int, array{type: ?string, hasSrc: bool}> Info for each </script> in the content (0-based index).
      */
-    private function getScriptTypes(File $phpcsFile, int $stackPtr, string $content): array
+    private function getScriptInfoList(File $phpcsFile, int $stackPtr, string $content): array
     {
-        $types = [];
+        $infoList = [];
 
         preg_match_all('/<script\b([^>]*)>/i', $content, $openMatches, PREG_OFFSET_CAPTURE);
         preg_match_all('/<\/script>/i', $content, $closeMatches, PREG_OFFSET_CAPTURE);
@@ -302,16 +312,23 @@ class CspRegisterInlineScriptSniff implements Sniff
             }
 
             if ($matchedOpen !== null) {
-                $types[$i] = $this->extractTypeFromAttributes($openMatches[1][$matchedOpen][0]);
+                $attrs = $openMatches[1][$matchedOpen][0];
+                $infoList[$i] = [
+                    'type' => $this->extractTypeFromAttributes($attrs),
+                    'hasSrc' => $this->hasSrcAttribute($attrs),
+                ];
             } else {
-                $types[$i] = $this->findScriptTypeFromPreviousTokens($phpcsFile, $stackPtr);
+                $infoList[$i] = $this->findScriptInfoFromPreviousTokens($phpcsFile, $stackPtr);
             }
         }
 
-        return $types;
+        return $infoList;
     }
 
-    private function findScriptTypeFromPreviousTokens(File $phpcsFile, int $stackPtr): ?string
+    /**
+     * @return array{type: ?string, hasSrc: bool}
+     */
+    private function findScriptInfoFromPreviousTokens(File $phpcsFile, int $stackPtr): array
     {
         $tokens = $phpcsFile->getTokens();
         for ($i = $stackPtr - 1; $i >= 0; $i--) {
@@ -321,15 +338,28 @@ class CspRegisterInlineScriptSniff implements Sniff
             $tokenContent = $tokens[$i]['content'];
             // Match a complete <script...> tag
             if (preg_match_all('/<script\b([^>]*)>/i', $tokenContent, $matches)) {
-                return $this->extractTypeFromAttributes(end($matches[1]));
+                $attrs = end($matches[1]);
+                return [
+                    'type' => $this->extractTypeFromAttributes($attrs),
+                    'hasSrc' => $this->hasSrcAttribute($attrs),
+                ];
             }
             // Match an incomplete <script tag split across tokens (e.g. PHP in attributes)
             if (($lastScriptPos = strripos($tokenContent, '<script')) !== false) {
-                $partial = substr($tokenContent, $lastScriptPos);
-                return $this->extractTypeFromAttributes($partial);
+                $attrs = substr($tokenContent, $lastScriptPos);
+                // Collect subsequent tokens to build complete attribute string
+                for ($j = $i + 1; $j < $stackPtr; $j++) {
+                    if ($tokens[$j]['code'] === T_INLINE_HTML) {
+                        $attrs .= $tokens[$j]['content'];
+                    }
+                }
+                return [
+                    'type' => $this->extractTypeFromAttributes($attrs),
+                    'hasSrc' => $this->hasSrcAttribute($attrs),
+                ];
             }
         }
-        return null;
+        return ['type' => null, 'hasSrc' => false];
     }
 
     private function checkAdminhtmlHasNoRegisterCall(File $phpcsFile): void
