@@ -294,9 +294,15 @@ class CspRegisterInlineScriptSniff implements Sniff
         for ($i = 0; $i < $closeCount; $i++) {
             $closeOffset = $closeMatches[0][$i][1];
 
-            if ($openIndex < $openCount && $openMatches[0][$openIndex][1] < $closeOffset) {
-                $types[$i] = $this->extractTypeFromAttributes($openMatches[1][$openIndex][0]);
+            // Advance past all <script> opens that precede this </script> and use the last one
+            $matchedOpen = null;
+            while ($openIndex < $openCount && $openMatches[0][$openIndex][1] < $closeOffset) {
+                $matchedOpen = $openIndex;
                 $openIndex++;
+            }
+
+            if ($matchedOpen !== null) {
+                $types[$i] = $this->extractTypeFromAttributes($openMatches[1][$matchedOpen][0]);
             } else {
                 $types[$i] = $this->findScriptTypeFromPreviousTokens($phpcsFile, $stackPtr);
             }

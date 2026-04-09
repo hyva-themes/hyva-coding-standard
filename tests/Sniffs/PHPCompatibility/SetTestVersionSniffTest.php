@@ -41,6 +41,15 @@ class SetTestVersionSniffTest extends SniffTestAbstract
         $this->assertMatchesRegularExpression('/^\d+\.\d+-$/', $testVersion, 'testVersion should be in Major.Minor- format');
     }
 
+    public function testSniffPreservesExplicitTestVersion(): void
+    {
+        Config::setConfigData('testVersion', '7.4-', true);
+
+        $this->processInlinePhpCode('echo "hello";');
+
+        $this->assertSame('7.4-', Config::getConfigData('testVersion'));
+    }
+
     public function testSniffProducesNoWarningsOrErrors(): void
     {
         $file = $this->processInlinePhpCode('echo "hello";');

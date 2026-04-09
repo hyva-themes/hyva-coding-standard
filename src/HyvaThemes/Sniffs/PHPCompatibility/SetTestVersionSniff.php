@@ -30,6 +30,10 @@ class SetTestVersionSniff implements Sniff
         }
         self::$testVersionSet = true;
 
+        if (Config::getConfigData('testVersion') !== null) {
+            return $phpcsFile->numTokens;
+        }
+
         $version = ComposerPhpVersion::detect(dirname($phpcsFile->getFilename()));
         Config::setConfigData('testVersion', $version . '-', true);
 
