@@ -50,8 +50,13 @@ class CspRegisterInlineScriptSniff implements Sniff
             return;
         }
 
-        $area = $this->detectArea($phpcsFile);
         $filename = $phpcsFile->getFilename();
+
+        if ($this->isDefaultThemePackage($filename)) {
+            return;
+        }
+
+        $area = $this->detectArea($phpcsFile);
 
         if ($area === self::AREA_ADMINHTML) {
             if (! isset($this->checkedFiles[$filename])) {
@@ -81,6 +86,11 @@ class CspRegisterInlineScriptSniff implements Sniff
         }
 
         $this->checkRegisterInlineScriptFollows($phpcsFile, $stackPtr, $content, $area, $scriptTypes);
+    }
+
+    private function isDefaultThemePackage(string $filename): bool
+    {
+        return strpos($filename, 'hyva-themes/magento2-default-theme/') !== false;
     }
 
     private function detectArea(File $phpcsFile): string

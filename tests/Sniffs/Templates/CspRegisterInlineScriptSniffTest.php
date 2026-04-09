@@ -35,6 +35,11 @@ class CspRegisterInlineScriptSniffTest extends SniffTestAbstract
         ];
         $path = $paths[$area] ?? $paths['frontend'];
 
+        return $this->processCodeForPath($code, $path);
+    }
+
+    private function processCodeForPath(string $code, string $path): File
+    {
         // DummyFile reads "phpcs_input_file: <path>" from the first line
         $codeWithPath = "phpcs_input_file: $path\n$code";
 
@@ -338,6 +343,19 @@ EOF
         $warnings = $file->getWarnings();
         $allMessages = $this->collectAllWarningMessages($warnings);
         $this->assertContains(CspRegisterInlineScriptSniff::MSG_UNEXPECTED_CSP_CALL, $allMessages);
+    }
+
+    // --- Default theme package tests ---
+
+    public function testDefaultThemePackageSkipsCspCheck(): void
+    {
+        $file = $this->processCodeForPath(<<<'EOF'
+<?php /** template */ ?>
+<script>var x = 1;</script>
+EOF
+            , '/vendor/hyva-themes/magento2-default-theme/Magento_Catalog/templates/test.phtml');
+
+        $this->assertSame(0, $file->getWarningCount());
     }
 
     // --- Fixer tests ---
