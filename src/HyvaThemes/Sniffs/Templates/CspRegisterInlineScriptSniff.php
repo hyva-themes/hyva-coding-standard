@@ -149,21 +149,14 @@ class CspRegisterInlineScriptSniff implements Sniff
         $normalizedCode = preg_replace('/\s+/', '', trim($phpCode));
 
         if ($area === self::AREA_FRONTEND) {
-            $validFrontendCalls = [
-                '$hyvaCsp->registerInlineScript()',
-                '$hyvaCsp->registerInlineScript();',
-            ];
-            if (! in_array($normalizedCode, $validFrontendCalls, true)) {
+            if (strpos($normalizedCode, '$hyvaCsp->registerInlineScript()') === false) {
                 $this->addMissingCspWarning($phpcsFile, $stackPtr, $area);
             }
         } elseif ($area === self::AREA_BASE) {
-            $validBaseCalls = [
-                'if(isset($hyvaCsp))$hyvaCsp->registerInlineScript()',
-                'if(isset($hyvaCsp))$hyvaCsp->registerInlineScript();',
-                'if(isset($hyvaCsp)){$hyvaCsp->registerInlineScript()}',
-                'if(isset($hyvaCsp)){$hyvaCsp->registerInlineScript();}',
-            ];
-            if (! in_array($normalizedCode, $validBaseCalls, true)) {
+            $hasIssetGuardedCall =
+                strpos($normalizedCode, 'if(isset($hyvaCsp))$hyvaCsp->registerInlineScript()') !== false
+                || strpos($normalizedCode, 'if(isset($hyvaCsp)){$hyvaCsp->registerInlineScript()') !== false;
+            if (! $hasIssetGuardedCall) {
                 $this->addMissingCspWarning($phpcsFile, $stackPtr, $area);
             }
         }

@@ -47,6 +47,10 @@
         <exclude name="Magento2.Templates.ThisInTemplate.FoundThis"/>
     </rule>
 
+    <rule ref="Generic.ControlStructures.InlineControlStructure">
+        <exclude-pattern>*\.phtml$</exclude-pattern>
+    </rule>
+
     <rule name="Squiz.ControlStructures.ControlSignature.SpaceAfterCloseParenthesis">
         <severity>8</severity>
     </rule>

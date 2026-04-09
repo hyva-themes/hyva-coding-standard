@@ -230,6 +230,89 @@ EOF
         $this->assertContains(CspRegisterInlineScriptSniff::MSG_MISSING_CSP_CALL_WITH_ISSET, $allMessages);
     }
 
+    public function testBasePassesWithIssetGuardedCspCallAndAdditionalCode(): void
+    {
+        $file = $this->processCodeForArea(<<<'EOF'
+<?php
+use Hyva\Theme\ViewModel\HyvaCsp;
+/** @var HyvaCsp $hyvaCsp */
+?>
+<script>var x = 1;</script>
+<?php if (isset($hyvaCsp)) $hyvaCsp->registerInlineScript(); ?>
+<?php echo "more code"; ?>
+EOF
+            , 'base');
+
+        $this->assertSame(0, $file->getWarningCount());
+    }
+
+    public function testBasePassesWithCspCallInMultiLinePhpBlock(): void
+    {
+        $file = $this->processCodeForArea(<<<'EOF'
+<?php
+use Hyva\Theme\ViewModel\HyvaCsp;
+/** @var HyvaCsp $hyvaCsp */
+?>
+<script>var x = 1;</script>
+<?php
+    if (isset($hyvaCsp)) $hyvaCsp->registerInlineScript();
+endif;
+EOF
+            , 'base');
+
+        $this->assertSame(0, $file->getWarningCount());
+    }
+
+    public function testBasePassesWithCspCallInBlockWithoutCloseTag(): void
+    {
+        $file = $this->processCodeForArea(<<<'EOF'
+<?php
+use Hyva\Theme\ViewModel\HyvaCsp;
+/** @var HyvaCsp $hyvaCsp */
+?>
+<script>var x = 1;</script>
+<?php
+    if (isset($hyvaCsp)) $hyvaCsp->registerInlineScript();
+    $someOtherCode = true;
+EOF
+            , 'base');
+
+        $this->assertSame(0, $file->getWarningCount());
+    }
+
+    public function testFrontendPassesWithCspCallAndAdditionalCode(): void
+    {
+        $file = $this->processCodeForArea(<<<'EOF'
+<?php
+use Hyva\Theme\ViewModel\HyvaCsp;
+/** @var HyvaCsp $hyvaCsp */
+?>
+<script>var x = 1;</script>
+<?php $hyvaCsp->registerInlineScript(); $otherCode = true; ?>
+EOF
+            , 'frontend');
+
+        $this->assertSame(0, $file->getWarningCount());
+    }
+
+    public function testFrontendPassesWithCspCallInMultiLinePhpBlock(): void
+    {
+        $file = $this->processCodeForArea(<<<'EOF'
+<?php
+use Hyva\Theme\ViewModel\HyvaCsp;
+/** @var HyvaCsp $hyvaCsp */
+?>
+<script>var x = 1;</script>
+<?php
+    $hyvaCsp->registerInlineScript();
+    echo "more";
+?>
+EOF
+            , 'frontend');
+
+        $this->assertSame(0, $file->getWarningCount());
+    }
+
     // --- Adminhtml area tests ---
 
     public function testAdminhtmlPassesWithoutCspCall(): void
