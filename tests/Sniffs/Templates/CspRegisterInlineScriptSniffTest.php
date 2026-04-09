@@ -588,6 +588,23 @@ EOF
         $this->assertSame(0, $file->getWarningCount());
     }
 
+    public function testFrontendPassesWithModuleScriptWithPhpInAttributes(): void
+    {
+        $file = $this->processCodeForArea(<<<'EOF'
+<?php
+/** some template */
+$url = 'test.js';
+?>
+<script type="module"
+        src="<?= $url ?>"
+        defer
+></script>
+EOF
+            , 'frontend');
+
+        $this->assertSame(0, $file->getWarningCount());
+    }
+
     public function testFixerSkipsJsonScriptWhenFixingJsScript(): void
     {
         $fixed = $this->fixCodeForArea(<<<'EOF'

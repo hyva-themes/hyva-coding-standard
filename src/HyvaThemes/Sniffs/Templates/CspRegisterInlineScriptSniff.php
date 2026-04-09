@@ -302,8 +302,15 @@ class CspRegisterInlineScriptSniff implements Sniff
             if ($tokens[$i]['code'] !== T_INLINE_HTML) {
                 continue;
             }
-            if (preg_match_all('/<script\b([^>]*)>/i', $tokens[$i]['content'], $matches)) {
+            $tokenContent = $tokens[$i]['content'];
+            // Match a complete <script...> tag
+            if (preg_match_all('/<script\b([^>]*)>/i', $tokenContent, $matches)) {
                 return $this->extractTypeFromAttributes(end($matches[1]));
+            }
+            // Match an incomplete <script tag split across tokens (e.g. PHP in attributes)
+            if (($lastScriptPos = strripos($tokenContent, '<script')) !== false) {
+                $partial = substr($tokenContent, $lastScriptPos);
+                return $this->extractTypeFromAttributes($partial);
             }
         }
         return null;
