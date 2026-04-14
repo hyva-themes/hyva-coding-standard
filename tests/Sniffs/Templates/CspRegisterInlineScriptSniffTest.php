@@ -782,6 +782,77 @@ EOF
         );
     }
 
+    // --- Theme area detection tests ---
+
+    public function testAdminhtmlThemePassesWithoutCspCall(): void
+    {
+        $path = __DIR__ . '/fixtures/csp/adminhtml-theme/Magento_Backend/templates/test.phtml';
+        $file = $this->processCodeForPath(<<<'EOF'
+<?php /* adminhtml theme template */ ?>
+<script>var x = 1;</script>
+EOF
+            , $path);
+
+        $this->assertSame(0, $file->getWarningCount());
+    }
+
+    public function testAdminhtmlThemeFailsWithCspCallPresent(): void
+    {
+        $path = __DIR__ . '/fixtures/csp/adminhtml-theme/Magento_Backend/templates/test.phtml';
+        $file = $this->processCodeForPath(<<<'EOF'
+<script>var x = 1;</script>
+<?php $hyvaCsp->registerInlineScript(); ?>
+EOF
+            , $path);
+
+        $this->assertGreaterThan(0, $file->getWarningCount());
+        $warnings = $file->getWarnings();
+        $allMessages = $this->collectAllWarningMessages($warnings);
+        $this->assertContains(CspRegisterInlineScriptSniff::MSG_UNEXPECTED_CSP_CALL, $allMessages);
+    }
+
+    // --- Hyva vs Luma theme detection tests ---
+
+    public function testFrontendHyvaThemeRequiresCspCall(): void
+    {
+        $path = __DIR__ . '/fixtures/csp/frontend-hyva-theme/Magento_Theme/templates/test.phtml';
+        $file = $this->processCodeForPath(<<<'EOF'
+<?php /* hyva frontend template */ ?>
+<script>var x = 1;</script>
+EOF
+            , $path);
+
+        $this->assertGreaterThan(0, $file->getWarningCount());
+    }
+
+    public function testFrontendHyvaThemePassesWithCspCall(): void
+    {
+        $path = __DIR__ . '/fixtures/csp/frontend-hyva-theme/Magento_Theme/templates/test.phtml';
+        $file = $this->processCodeForPath(<<<'EOF'
+<?php
+use Hyva\Theme\ViewModel\HyvaCsp;
+/** @var HyvaCsp $hyvaCsp */
+?>
+<script>var x = 1;</script>
+<?php $hyvaCsp->registerInlineScript(); ?>
+EOF
+            , $path);
+
+        $this->assertSame(0, $file->getWarningCount());
+    }
+
+    public function testFrontendLumaThemeSkipsCspCheck(): void
+    {
+        $path = __DIR__ . '/fixtures/csp/frontend-luma-theme/Magento_Theme/templates/test.phtml';
+        $file = $this->processCodeForPath(<<<'EOF'
+<?php /* luma frontend template */ ?>
+<script>var x = 1;</script>
+EOF
+            , $path);
+
+        $this->assertSame(0, $file->getWarningCount());
+    }
+
     /**
      * Collect all warning messages from the warnings array.
      *

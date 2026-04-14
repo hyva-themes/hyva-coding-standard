@@ -37,6 +37,12 @@ class CspRegisterInlineScriptSniff implements Sniff
     /** @var array<string, string> */
     private $fileAreas = [];
 
+    /** @var array<string, string|false> directory path => theme root path or false */
+    private $themeRootCache = [];
+
+    /** @var array<string, bool> theme root path => is Hyva theme */
+    private $hyvaThemeCache = [];
+
     public function register()
     {
         return [T_INLINE_HTML];
@@ -63,6 +69,10 @@ class CspRegisterInlineScriptSniff implements Sniff
                 $this->checkedFiles[$filename] = true;
                 $this->checkAdminhtmlHasNoRegisterCall($phpcsFile);
             }
+            return;
+        }
+
+        if ($area === self::AREA_FRONTEND && ! $this->isHyvaTheme($filename)) {
             return;
         }
 
@@ -102,10 +112,75 @@ class CspRegisterInlineScriptSniff implements Sniff
             } elseif (strpos($filename, 'view/base/') !== false) {
                 $this->fileAreas[$filename] = self::AREA_BASE;
             } else {
-                $this->fileAreas[$filename] = self::AREA_FRONTEND;
+                $this->fileAreas[$filename] = $this->detectThemeArea($filename) ?? self::AREA_FRONTEND;
             }
         }
         return $this->fileAreas[$filename];
+    }
+
+    private function detectThemeArea(string $filename): ?string
+    {
+        $themeRoot = $this->findThemeRoot($filename);
+        if ($themeRoot === null) {
+            return null;
+        }
+
+        $registrationFile = $themeRoot . '/registration.php';
+        $content = file_get_contents($registrationFile);
+        if ($content === false) {
+            return null;
+        }
+
+        if (preg_match('/ComponentRegistrar::register\s*\(\s*ComponentRegistrar::THEME\s*,\s*[\'"](\w+)\//s', $content, $matches)) {
+            return $matches[1];
+        }
+
+        return null;
+    }
+
+    private function findThemeRoot(string $filename): ?string
+    {
+        $dir = dirname($filename);
+
+        while ($dir !== dirname($dir)) {
+            if (isset($this->themeRootCache[$dir])) {
+                return $this->themeRootCache[$dir] ?: null;
+            }
+
+            $registrationFile = $dir . '/registration.php';
+            if (file_exists($registrationFile)) {
+                $content = file_get_contents($registrationFile);
+                if ($content !== false) {
+                    if (strpos($content, 'ComponentRegistrar::THEME') !== false) {
+                        $this->themeRootCache[$dir] = $dir;
+                        return $dir;
+                    }
+                    if (strpos($content, 'ComponentRegistrar::MODULE') !== false) {
+                        $this->themeRootCache[$dir] = false;
+                        return null;
+                    }
+                }
+            }
+
+            $dir = dirname($dir);
+        }
+
+        $this->themeRootCache[$dir] = false;
+        return null;
+    }
+
+    private function isHyvaTheme(string $filename): bool
+    {
+        $themeRoot = $this->findThemeRoot($filename);
+        if ($themeRoot === null) {
+            return true; // Not in a theme — assume Hyva (preserve existing behavior for modules)
+        }
+
+        if (! isset($this->hyvaThemeCache[$themeRoot])) {
+            $this->hyvaThemeCache[$themeRoot] = is_dir($themeRoot . '/web/tailwind');
+        }
+
+        return $this->hyvaThemeCache[$themeRoot];
     }
 
     private function checkRegisterInlineScriptFollows(
