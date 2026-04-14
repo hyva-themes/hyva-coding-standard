@@ -17,10 +17,13 @@ class ComposerPhpVersion
     {
         $constraint = self::findPhpConstraint($dir);
         if ($constraint === null) {
-            return self::DEFAULT_VERSION;
+            return self::DEFAULT_VERSION . '-';
         }
 
-        return self::parseLowestVersion($constraint) ?? self::DEFAULT_VERSION;
+        $lowest = self::parseLowestVersion($constraint) ?? self::DEFAULT_VERSION;
+        $highest = self::parseHighestVersion($constraint);
+
+        return $highest !== null ? $lowest . '-' . $highest : $lowest . '-';
     }
 
     private static function findPhpConstraint(string $dir): ?string
@@ -68,6 +71,107 @@ class ComposerPhpVersion
         }
 
         return $lowestVersion !== null ? self::normalizeMajorMinor($lowestVersion) : null;
+    }
+
+    public static function parseHighestVersion(string $constraint): ?string
+    {
+        $branches = preg_split('/\s*\|\|?\s*/', $constraint);
+        if ($branches === false) {
+            return null;
+        }
+
+        $highestVersion = null;
+
+        foreach ($branches as $branch) {
+            $branch = trim($branch);
+            if ($branch === '' || $branch === '*') {
+                continue;
+            }
+
+            $version = self::extractHighestFromBranch($branch);
+            if ($version === null) {
+                // If any branch has no upper bound, overall is unbounded
+                return null;
+            }
+            if ($highestVersion === null || version_compare($version, $highestVersion, '>')) {
+                $highestVersion = $version;
+            }
+        }
+
+        return $highestVersion !== null ? self::normalizeMajorMinor($highestVersion) : null;
+    }
+
+    private static function extractHighestFromBranch(string $branch): ?string
+    {
+        $parts = preg_split('/[,\s]+/', $branch);
+        if ($parts === false) {
+            return null;
+        }
+
+        $upperBound = null;
+        $upperIsInclusive = false;
+
+        foreach ($parts as $part) {
+            $part = trim($part);
+            if ($part === '' || $part === '*') {
+                continue;
+            }
+
+            $bound = null;
+            $inclusive = false;
+
+            // Explicit upper bounds: < and <=
+            if (preg_match('/^<=?\s*(\d+(?:\.\d+(?:\.\d+)?)?)/', $part, $matches)) {
+                $bound = $matches[1];
+                $inclusive = str_starts_with($part, '<=');
+            }
+            // Caret operator: ^X.Y → upper bound <(X+1).0
+            elseif (preg_match('/^\^\s*(\d+)/', $part, $matches)) {
+                $major = (int)$matches[1];
+                $bound = ($major + 1) . '.0';
+                $inclusive = false;
+            }
+            // Tilde operator: ~X.Y → upper bound <X.(Y+1)
+            elseif (preg_match('/^~\s*(\d+)(?:\.(\d+))?/', $part, $matches)) {
+                $major = (int)$matches[1];
+                if (isset($matches[2])) {
+                    $minor = (int)$matches[2];
+                    $bound = $major . '.' . ($minor + 1);
+                } else {
+                    // ~X means <(X+1).0
+                    $bound = ($major + 1) . '.0';
+                }
+                $inclusive = false;
+            }
+
+            if ($bound !== null) {
+                if ($upperBound === null || version_compare($bound, $upperBound, '<')
+                    || (version_compare($bound, $upperBound, '==') && !$inclusive)) {
+                    $upperBound = $bound;
+                    $upperIsInclusive = $inclusive;
+                }
+            }
+        }
+
+        if ($upperBound === null) {
+            return null;
+        }
+
+        if ($upperIsInclusive) {
+            return $upperBound;
+        }
+
+        // Exclusive upper bound: convert to highest matching major.minor
+        $boundParts = explode('.', $upperBound);
+        $major = (int)$boundParts[0];
+        $minor = (int)($boundParts[1] ?? '0');
+
+        if ($minor > 0) {
+            return $major . '.' . ($minor - 1);
+        }
+
+        // <X.0 → highest is (X-1).99
+        return ($major - 1) . '.99';
     }
 
     private static function extractLowestFromBranch(string $branch): ?string

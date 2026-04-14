@@ -38,7 +38,7 @@ class SetTestVersionSniffTest extends SniffTestAbstract
 
         $testVersion = Config::getConfigData('testVersion');
         $this->assertNotNull($testVersion, 'testVersion should be set after sniff processes');
-        $this->assertMatchesRegularExpression('/^\d+\.\d+-$/', $testVersion, 'testVersion should be in Major.Minor- format');
+        $this->assertMatchesRegularExpression('/^\d+\.\d+-(\d+\.\d+)?$/', $testVersion, 'testVersion should be in Major.Minor-Major.Minor or Major.Minor- format');
     }
 
     public function testSniffPreservesExplicitTestVersion(): void
