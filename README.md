@@ -46,6 +46,59 @@ If you installed it as a Magento project dependency, adjust the path to `phpcs` 
 ./vendor/bin/phpcs --standard=HyvaThemes app/code/path/to/check
 ```
 
+## Usage with Docker (no local PHP required)
+
+If you don't have (or don't want) a PHP interpreter on your host system, you can run the coding standard in a Docker container instead.
+This repository ships a `Dockerfile` and a wrapper script `bin/phpcs-docker` for this purpose.
+
+Clone this repository, and optionally make the wrapper available on your `PATH`, for example:
+
+```sh
+git clone https://github.com/hyva-themes/hyva-coding-standard.git ~/hyva-coding-standard
+ln -s ~/hyva-coding-standard/bin/phpcs-docker ~/bin/phpcs-docker
+ln -s ~/hyva-coding-standard/bin/phpcbf-docker ~/bin/phpcbf-docker
+```
+
+Then run it from the root directory of the project you want to check, passing only the additional `phpcs` arguments — `--standard=HyvaThemes` is applied automatically:
+
+```sh
+cd /path/to/magento-project
+phpcs-docker app/code/path/to/check
+```
+
+On the first run, the wrapper automatically builds the Docker image (named `hyva-themes/coding-standard` by default, override with the `HYVA_PHPCS_IMAGE` environment variable).
+The wrapper mounts the current working directory into the container at the same path, so the report output shows your real file paths, and the sniffs can detect the project's PHP version (from `composer.json`) and theme type (from `registration.php`).
+For this detection to work, always run the command from the project root (or any directory containing the files to check together with the project's `composer.json` further up the tree).
+Alternatively, set the `HYVA_PHPCS_MOUNT` environment variable to a parent directory (e.g. the project root or your workspace directory) to make it visible inside the container even when running from a subdirectory:
+
+```sh
+cd app/design/frontend/My/theme
+HYVA_PHPCS_MOUNT=/path/to/magento-project phpcs-docker Magento_Theme/templates
+```
+
+### Rebuilding the image after changes
+
+The wrapper hashes the files the image is built from (`Dockerfile`, `composer.json`, `bin/`, `src/`) and stores the hash as an image label.
+When any of those files change (e.g. after a `git pull` or while developing a sniff), the image is rebuilt automatically on the next run — no manual step needed.
+
+One exception: new releases of the *dependencies* (e.g. the Magento coding standard) are not detected, because the dependency versions are resolved inside the image build.
+To refresh the dependencies to the latest matching releases, rebuild without the Docker layer cache:
+
+```sh
+docker build --no-cache -t hyva-themes/coding-standard ~/hyva-coding-standard
+```
+
+(On the next run the wrapper rebuilds once more to re-add its hash label — that rebuild reuses the now-refreshed layer cache, so the updated dependencies are kept.)
+
+### Running phpcbf with Docker
+
+To automatically fix violations, use the `bin/phpcbf-docker` wrapper the same way as `bin/phpcs-docker`:
+
+```sh
+cd /path/to/magento-project
+phpcbf-docker app/code/path/to/fix
+```
+
 ## Configuration in PHPStorm
 
 Setting up the PHPStorm configuration differs depending on if you use a containerized or local PHP interpreter.

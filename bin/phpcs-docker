@@ -1,0 +1,58 @@
+#!/bin/sh
+set -eu
+
+IMAGE="${HYVA_PHPCS_IMAGE:-hyva-themes/coding-standard}"
+HASH_LABEL="io.hyva.phpcs.src-hash"
+
+# Run phpcbf instead of phpcs when invoked as phpcbf-docker (a symlink to
+# this script).
+case "$(basename -- "$0")" in
+    *phpcbf*) TOOL="phpcbf" ;;
+    *)        TOOL="phpcs" ;;
+esac
+
+# Resolve symlinks (e.g. when linked into a PATH directory) to locate the
+# repository this script lives in.
+SCRIPT="$0"
+while [ -L "$SCRIPT" ]; do
+    LINK="$(readlink "$SCRIPT")"
+    case "$LINK" in
+        /*) SCRIPT="$LINK" ;;
+        *)  SCRIPT="$(dirname -- "$SCRIPT")/$LINK" ;;
+    esac
+done
+REPO_DIR="$(CDPATH= cd -- "$(dirname -- "$SCRIPT")/.." && pwd)"
+
+# Hash the files the image is built from (names + contents), so the image is
+# built on first use and rebuilt automatically whenever sniffs, composer.json
+# or the Dockerfile change.
+SRC_HASH="$(
+    cd "$REPO_DIR" \
+    && find Dockerfile composer.json bin src -type f | LC_ALL=C sort | xargs cksum | cksum | cut -d' ' -f1
+)"
+IMAGE_HASH="$(docker image inspect -f "{{index .Config.Labels \"$HASH_LABEL\"}}" "$IMAGE" 2>/dev/null || true)"
+
+if [ "$IMAGE_HASH" != "$SRC_HASH" ]; then
+    docker build --label "$HASH_LABEL=$SRC_HASH" -t "$IMAGE" "$REPO_DIR" >&2
+fi
+
+# Allocate a tty when attached to one so phpcs emits colors. Skipped when
+# stdin or stdout is redirected (e.g. when an editor pipes a buffer in via
+# `--stdin-path=<file> -`), because `docker run -t` requires a tty on stdin.
+TTY_FLAG=""
+if [ -t 0 ] && [ -t 1 ]; then
+    TTY_FLAG="-t"
+fi
+
+# Mount the cwd at the identical path inside the container, so report paths
+# match the host and sniffs can resolve the project's composer.json and
+# theme registration.php files relative to the scanned files.
+# Set HYVA_PHPCS_MOUNT to a parent directory to make files above the cwd
+# visible too (e.g. when running from a subdirectory of a theme or project).
+# -i forwards stdin into the container for `-` (stdin) input.
+MOUNT_DIR="${HYVA_PHPCS_MOUNT:-$PWD}"
+exec docker run --rm -i $TTY_FLAG \
+    -v "$MOUNT_DIR":"$MOUNT_DIR" \
+    -w "$PWD" \
+    --entrypoint "/standard/vendor/bin/$TOOL" \
+    "$IMAGE" --standard=HyvaThemes "$@"
