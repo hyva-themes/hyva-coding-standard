@@ -17,9 +17,7 @@ class CspRegisterInlineScriptSniff implements Sniff
 {
     public const MSG_MISSING_CSP_CALL = 'Missing <?php $hyvaCsp->registerInlineScript(); ?> after </script> tag';
 
-    public const MSG_MISSING_CSP_CALL_WITH_ISSET = 'Missing <?php if (isset($hyvaCsp)) $hyvaCsp->registerInlineScript(); ?> after </script> tag in base area template';
-
-    public const MSG_UNEXPECTED_CSP_CALL = '$hyvaCsp->registerInlineScript() must not be used in adminhtml area templates';
+    public const MSG_MISSING_CSP_CALL_WITH_ISSET = 'Missing <?php if (isset($hyvaCsp)) $hyvaCsp->registerInlineScript(); ?> after </script> tag in base or adminhtml area template';
 
     public const MSG_MISSING_USE_IMPORT = 'Template with <script> tags must have: use Hyva\\Theme\\ViewModel\\HyvaCsp;';
 
@@ -63,14 +61,6 @@ class CspRegisterInlineScriptSniff implements Sniff
         }
 
         $area = $this->detectArea($phpcsFile);
-
-        if ($area === self::AREA_ADMINHTML) {
-            if (! isset($this->checkedFiles[$filename])) {
-                $this->checkedFiles[$filename] = true;
-                $this->checkAdminhtmlHasNoRegisterCall($phpcsFile);
-            }
-            return;
-        }
 
         if ($area === self::AREA_FRONTEND && ! $this->isHyvaTheme($filename)) {
             return;
@@ -257,15 +247,15 @@ class CspRegisterInlineScriptSniff implements Sniff
         // Normalize: strip all whitespace for comparison
         $normalizedCode = preg_replace('/\s+/', '', trim($phpCode));
 
-        if ($area === self::AREA_FRONTEND) {
-            if (strpos($normalizedCode, '$hyvaCsp->registerInlineScript()') === false) {
-                $this->addMissingCspWarning($phpcsFile, $stackPtr, $area);
-            }
-        } elseif ($area === self::AREA_BASE) {
+        if ($this->requiresIssetGuard($area)) {
             $hasIssetGuardedCall =
                 strpos($normalizedCode, 'if(isset($hyvaCsp))$hyvaCsp->registerInlineScript()') !== false
                 || strpos($normalizedCode, 'if(isset($hyvaCsp)){$hyvaCsp->registerInlineScript()') !== false;
             if (! $hasIssetGuardedCall) {
+                $this->addMissingCspWarning($phpcsFile, $stackPtr, $area);
+            }
+        } else {
+            if (strpos($normalizedCode, '$hyvaCsp->registerInlineScript()') === false) {
                 $this->addMissingCspWarning($phpcsFile, $stackPtr, $area);
             }
         }
@@ -276,15 +266,20 @@ class CspRegisterInlineScriptSniff implements Sniff
 
     private function getCspSnippet(string $area): string
     {
-        if ($area === self::AREA_BASE) {
+        if ($this->requiresIssetGuard($area)) {
             return '<?php if (isset($hyvaCsp)) $hyvaCsp->registerInlineScript(); ?>';
         }
         return '<?php $hyvaCsp->registerInlineScript(); ?>';
     }
 
+    private function requiresIssetGuard(string $area): bool
+    {
+        return $area === self::AREA_BASE || $area === self::AREA_ADMINHTML;
+    }
+
     private function addFixableCspWarning(File $phpcsFile, int $stackPtr, string $area): bool
     {
-        if ($area === self::AREA_BASE) {
+        if ($this->requiresIssetGuard($area)) {
             return $phpcsFile->addFixableWarning(self::MSG_MISSING_CSP_CALL_WITH_ISSET, $stackPtr, 'MissingCspRegisterInlineScriptWithIsset');
         }
         return $phpcsFile->addFixableWarning(self::MSG_MISSING_CSP_CALL, $stackPtr, 'MissingCspRegisterInlineScript');
@@ -292,7 +287,7 @@ class CspRegisterInlineScriptSniff implements Sniff
 
     private function addMissingCspWarning(File $phpcsFile, int $stackPtr, string $area): void
     {
-        if ($area === self::AREA_BASE) {
+        if ($this->requiresIssetGuard($area)) {
             $phpcsFile->addWarning(self::MSG_MISSING_CSP_CALL_WITH_ISSET, $stackPtr, 'MissingCspRegisterInlineScriptWithIsset');
         } else {
             $phpcsFile->addWarning(self::MSG_MISSING_CSP_CALL, $stackPtr, 'MissingCspRegisterInlineScript');
@@ -435,16 +430,6 @@ class CspRegisterInlineScriptSniff implements Sniff
             }
         }
         return ['type' => null, 'hasSrc' => false];
-    }
-
-    private function checkAdminhtmlHasNoRegisterCall(File $phpcsFile): void
-    {
-        $tokens = $phpcsFile->getTokens();
-        foreach ($tokens as $ptr => $token) {
-            if ($token['code'] === T_STRING && $token['content'] === 'registerInlineScript') {
-                $phpcsFile->addWarning(self::MSG_UNEXPECTED_CSP_CALL, $ptr, 'UnexpectedCspRegisterInlineScript');
-            }
-        }
     }
 
     private function checkUseImport(File $phpcsFile, int $reportPtr): void

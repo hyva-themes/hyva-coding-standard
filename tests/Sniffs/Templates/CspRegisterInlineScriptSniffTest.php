@@ -320,20 +320,28 @@ EOF
 
     // --- Adminhtml area tests ---
 
-    public function testAdminhtmlPassesWithoutCspCall(): void
+    public function testAdminhtmlPassesWithIssetGuardedCspCall(): void
     {
         $file = $this->processCodeForArea(<<<'EOF'
-<?php /* adminhtml template */ ?>
+<?php
+use Hyva\Theme\ViewModel\HyvaCsp;
+/** @var HyvaCsp $hyvaCsp */
+?>
 <script>var x = 1;</script>
+<?php if (isset($hyvaCsp)) $hyvaCsp->registerInlineScript(); ?>
 EOF
             , 'adminhtml');
 
         $this->assertSame(0, $file->getWarningCount());
     }
 
-    public function testAdminhtmlFailsWithCspCallPresent(): void
+    public function testAdminhtmlFailsWithUnguardedCspCall(): void
     {
         $file = $this->processCodeForArea(<<<'EOF'
+<?php
+use Hyva\Theme\ViewModel\HyvaCsp;
+/** @var HyvaCsp $hyvaCsp */
+?>
 <script>var x = 1;</script>
 <?php $hyvaCsp->registerInlineScript(); ?>
 EOF
@@ -342,7 +350,38 @@ EOF
         $this->assertGreaterThan(0, $file->getWarningCount());
         $warnings = $file->getWarnings();
         $allMessages = $this->collectAllWarningMessages($warnings);
-        $this->assertContains(CspRegisterInlineScriptSniff::MSG_UNEXPECTED_CSP_CALL, $allMessages);
+        $this->assertContains(CspRegisterInlineScriptSniff::MSG_MISSING_CSP_CALL_WITH_ISSET, $allMessages);
+    }
+
+    public function testAdminhtmlFailsWithoutCspCall(): void
+    {
+        $file = $this->processCodeForArea(<<<'EOF'
+<?php
+use Hyva\Theme\ViewModel\HyvaCsp;
+/** @var HyvaCsp $hyvaCsp */
+?>
+<script>var x = 1;</script>
+<div>content</div>
+EOF
+            , 'adminhtml');
+
+        $this->assertGreaterThan(0, $file->getWarningCount());
+        $warnings = $file->getWarnings();
+        $allMessages = $this->collectAllWarningMessages($warnings);
+        $this->assertContains(CspRegisterInlineScriptSniff::MSG_MISSING_CSP_CALL_WITH_ISSET, $allMessages);
+    }
+
+    public function testAdminhtmlPassesWithJsonScriptWithoutCspCall(): void
+    {
+        $file = $this->processCodeForArea(<<<'EOF'
+<?php
+/** adminhtml template */
+?>
+<script type="application/json">{"key": "value"}</script>
+EOF
+            , 'adminhtml');
+
+        $this->assertSame(0, $file->getWarningCount());
     }
 
     // --- Default theme package tests ---
@@ -415,6 +454,24 @@ use Hyva\Theme\ViewModel\HyvaCsp;
 <div>content</div>
 EOF
             , 'base');
+
+        $this->assertStringContainsString(
+            "</script>\n<?php if (isset(\$hyvaCsp)) \$hyvaCsp->registerInlineScript(); ?>\n<div>content</div>",
+            $fixed
+        );
+    }
+
+    public function testFixerInsertsCspCallWithIssetForAdminhtmlArea(): void
+    {
+        $fixed = $this->fixCodeForArea(<<<'EOF'
+<?php
+use Hyva\Theme\ViewModel\HyvaCsp;
+/** @var HyvaCsp $hyvaCsp */
+?>
+<script>var x = 1;</script>
+<div>content</div>
+EOF
+            , 'adminhtml');
 
         $this->assertStringContainsString(
             "</script>\n<?php if (isset(\$hyvaCsp)) \$hyvaCsp->registerInlineScript(); ?>\n<div>content</div>",
@@ -784,22 +841,30 @@ EOF
 
     // --- Theme area detection tests ---
 
-    public function testAdminhtmlThemePassesWithoutCspCall(): void
+    public function testAdminhtmlThemePassesWithIssetGuardedCspCall(): void
     {
         $path = __DIR__ . '/fixtures/csp/adminhtml-theme/Magento_Backend/templates/test.phtml';
         $file = $this->processCodeForPath(<<<'EOF'
-<?php /* adminhtml theme template */ ?>
+<?php
+use Hyva\Theme\ViewModel\HyvaCsp;
+/** @var HyvaCsp $hyvaCsp */
+?>
 <script>var x = 1;</script>
+<?php if (isset($hyvaCsp)) $hyvaCsp->registerInlineScript(); ?>
 EOF
             , $path);
 
         $this->assertSame(0, $file->getWarningCount());
     }
 
-    public function testAdminhtmlThemeFailsWithCspCallPresent(): void
+    public function testAdminhtmlThemeFailsWithUnguardedCspCall(): void
     {
         $path = __DIR__ . '/fixtures/csp/adminhtml-theme/Magento_Backend/templates/test.phtml';
         $file = $this->processCodeForPath(<<<'EOF'
+<?php
+use Hyva\Theme\ViewModel\HyvaCsp;
+/** @var HyvaCsp $hyvaCsp */
+?>
 <script>var x = 1;</script>
 <?php $hyvaCsp->registerInlineScript(); ?>
 EOF
@@ -808,7 +873,7 @@ EOF
         $this->assertGreaterThan(0, $file->getWarningCount());
         $warnings = $file->getWarnings();
         $allMessages = $this->collectAllWarningMessages($warnings);
-        $this->assertContains(CspRegisterInlineScriptSniff::MSG_UNEXPECTED_CSP_CALL, $allMessages);
+        $this->assertContains(CspRegisterInlineScriptSniff::MSG_MISSING_CSP_CALL_WITH_ISSET, $allMessages);
     }
 
     // --- Hyva vs Luma theme detection tests ---
